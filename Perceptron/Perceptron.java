@@ -18,7 +18,7 @@ public class Perceptron {
         double yent, f;
         boolean mudou;
         epocas = 0;
-
+                        
         do {
             mudou = false;
             for (int i = 0; i < x.length; i++) {
@@ -105,4 +105,3 @@ public class Perceptron {
 }
 
 
-//fazer o teste de entradas  x saídas
