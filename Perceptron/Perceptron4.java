@@ -1,183 +1,194 @@
-
 import java.util.Scanner;
 
 public class Perceptron4 {
 
-    // Matriz de entradas (10 padrões de 16 posições)
-    double[][] x = new double[10][16];
+    private double x[][] = {
 
-    // Matriz de saídas desejadas
-    int[][] t = {
-            { -1, -1, -1, -1 }, // 0
-            { -1, -1, -1, 1 }, // 1
-            { -1, -1, 1, -1 }, // 2
-            { -1, -1, 1, 1 }, // 3
-            { -1, 1, -1, -1 }, // 4
-            { -1, 1, -1, 1 }, // 5
-            { -1, 1, 1, -1 }, // 6
-            { -1, 1, 1, 1 }, // 7
-            { 1, -1, -1, -1 }, // 8
-            { 1, -1, -1, 1 } // 9
+            { 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1 }, // 0
+            { 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1 }, // 1
+            { 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1 }, // 2
+            { 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1 }, // 3
+            { 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1 }, // 4
+            { 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1 }, // 5
+            { 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1 }, // 6
+            { 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1 }, // 7
+            { 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1 }, // 8
+            { 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1 } // 9
+
     };
+    // padrões de entrada (dígitos 0–9 em matriz 4x4)
 
-    double[][] w = new double[16][4]; // pesos
-    double limiar = 0.0;
-    double alfa = 0.5;
+    private double w[][] = new double[16][4];
+    // Matriz de pesos. 16 são os pesos para cada uma das entradas e 4 são os
+    // perceptrons
 
-    // Construtor que inicializa os padrões
-    public Perceptron4() {
+    private double t[][] = {
+            { 1, 1, 1, 1 }, // 0
+            { 1, 1, 1, -1 }, // 1
+            { 1, 1, -1, 1 }, // 2
+            { 1, 1, -1, -1 }, // 3
+            { 1, -1, 1, 1 }, // 4
+            { 1, -1, 1, -1 }, // 5
+            { 1, -1, -1, 1 }, // 6
+            { 1, -1, -1, -1 }, // 7
+            { -1, 1, 1, 1 }, // 8
+            { -1, 1, 1, -1 } // 9
+    };
+    // Matriz de saídas desejadas
 
-        x[0] = new double[] {
-                1, 1, 1, 1,
-                1, 0, 0, 1,
-                1, 0, 0, 1,
-                1, 1, 1, 1
-        };
+    private int epocas;
 
-        x[1] = new double[] {
-                0, 0, 1, 0,
-                0, 1, 1, 0,
-                1, 0, 1, 0,
-                0, 0, 1, 0
-        };
+    public double[][] algoritmo(double alfa, double limiar) {
 
-        x[2] = new double[] {
-                1, 1, 1, 1,
-                0, 0, 0, 1,
-                1, 1, 1, 1,
-                1, 0, 0, 0
-        };
-
-        x[3] = new double[] {
-                1, 1, 1, 1,
-                0, 0, 0, 1,
-                0, 1, 1, 1,
-                1, 1, 1, 1
-        };
-
-        x[4] = new double[] {
-                1, 0, 0, 1,
-                1, 0, 0, 1,
-                1, 1, 1, 1,
-                0, 0, 0, 1
-        };
-
-        x[5] = new double[] {
-                1, 1, 1, 1,
-                1, 0, 0, 0,
-                1, 1, 1, 1,
-                0, 0, 0, 1
-        };
-
-        x[6] = new double[] {
-                1, 1, 1, 1,
-                1, 0, 0, 0,
-                1, 1, 1, 1,
-                1, 0, 0, 1
-        };
-
-        x[7] = new double[] {
-                1, 1, 1, 1,
-                0, 0, 0, 1,
-                0, 0, 1, 0,
-                0, 1, 0, 0
-        };
-
-        x[8] = new double[] {
-                1, 1, 1, 1,
-                1, 0, 0, 1,
-                1, 1, 1, 1,
-                1, 0, 0, 1
-        };
-
-        x[9] = new double[] {
-                1, 1, 1, 1,
-                1, 0, 0, 1,
-                1, 1, 1, 1,
-                0, 0, 0, 1
-        };
-    }
-
-    // Função de ativação
-    public int funcaoAtivacao(double yent) {
-        if (yent > limiar)
-            return 1;
-        else if (yent < -limiar)
-            return -1;
-        else
-            return 0;
-    }
-
-    // Treinamento
-    public void treinar() {
-
+        double yent, f;
         boolean mudou;
-        int epocas = 0;
+        epocas = 0;
 
         do {
 
             mudou = false;
 
             for (int i = 0; i < 10; i++) {
+
                 for (int k = 0; k < 4; k++) {
-                    double yent = 0;
-                    for (int j = 0; j < 16; j++) {
-                        yent += x[i][j] * w[j][k];
-                    }
-                    int f = funcaoAtivacao(yent);
+
+                    yent = somatorio(i, k);
+                    f = saida(yent, limiar);
+
                     if (f != t[i][k]) {
-                        for (int j = 0; j < 16; j++) {
-                            w[j][k] += alfa * (t[i][k] - f) * x[i][j];
-                        }
+
+                        atualiza(alfa, f, i, k);
                         mudou = true;
+
                     }
                 }
             }
+
             epocas++;
-        } while (mudou);
-        System.out.println("Treinamento finalizado em " + epocas + " épocas.");
+
+        } while (mudou == true);
+
+        return w;
     }
 
-    // Teste da rede
-    public void testar() {
+    public double somatorio(int padrao, int perceptron) {
 
-        Scanner sc = new Scanner(System.in);
-        double[] entrada = new double[16];
+        double soma = 0;
 
-        System.out.println("Digite os 16 valores da entrada:");
+        for (int j = 0; j < 16; j++) {
 
-        for (int i = 0; i < 16; i++) {
-            entrada[i] = sc.nextDouble();
+            soma += w[j][perceptron] * x[padrao][j];
+
         }
 
-        int[] saida = new int[4];
+        return soma;
+    }
+
+    public double saida(double yent, double limiar) {
+
+        if (yent > limiar) {
+            return 1;
+
+        } else if (yent < -limiar) {
+            return -1;
+
+        } else {
+
+            return 0;
+
+        }
+    }
+
+    public void atualiza(double alfa, double f, int padrao, int perceptron) {
+
+        for (int j = 0; j < 16; j++) {
+
+            w[j][perceptron] += (alfa * (t[padrao][perceptron] - f) * x[padrao][j]);
+
+        }
+    }
+
+    public void testarEntradas(double pesos[][], double limiar, Scanner s) {
+
+        double entrada[] = new double[16];
+
+        System.out.println("\nDigite 16 valores de entrada (0 ou 1):");
+
+        for (int i = 0; i < 16; i++) {
+
+            entrada[i] = s.nextDouble();
+
+        }
+
+        double saidas[] = new double[4];
 
         for (int k = 0; k < 4; k++) {
 
             double yent = 0;
 
             for (int j = 0; j < 16; j++) {
-                yent += entrada[j] * w[j][k];
+
+                yent += pesos[j][k] * entrada[j];
+
             }
 
-            saida[k] = funcaoAtivacao(yent);
+            saidas[k] = saida(yent, limiar);
+
         }
 
-        System.out.print("Saída da rede: ");
+        System.out.print("\nSaída dos perceptrons: ");
 
-        for (int i = 0; i < 4; i++) {
-            System.out.print(saida[i] + " ");
+        for (int k = 0; k < 4; k++) {
+
+            System.out.print((int) saidas[k] + " ");
+
         }
 
         System.out.println();
     }
 
-    // Programa principal
     public static void main(String[] args) {
+
+        Scanner s = new Scanner(System.in);
+
+        double alfa, limiar;
+
+        do {
+
+            System.out.print("Digite o valor de alfa (entre 0 e 1): ");
+            alfa = s.nextDouble();
+
+            if (alfa <= 0 || alfa > 1) {
+
+                System.out.println("Erro! Alfa deve estar entre 0 e 1.");
+
+            }
+
+        } while (alfa <= 0 || alfa > 1);
+
+        System.out.print("Digite o valor do limiar: ");
+        limiar = s.nextDouble();
 
         Perceptron4 p = new Perceptron4();
 
-        p.treinar();
-        p.testar();
+        double pesos[][] = p.algoritmo(alfa, limiar);
+
+        System.out.println("\nTreinamento concluído em " + p.epocas + " épocas.");
+
+        System.out.println("Pesos finais: ");
+
+        for (int j = 0; j < 16; j++) {
+
+            for (int k = 0; k < 4; k++) {
+
+                System.out.println("w[" + j + "][" + k + "] = " + pesos[j][k]);
+
+            }
+
+        }
+
+        p.testarEntradas(pesos, limiar, s);
+
+        s.close();
     }
 }
