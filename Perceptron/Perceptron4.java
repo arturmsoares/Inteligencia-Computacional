@@ -4,6 +4,7 @@ public class Perceptron4 {
 
     private double x[][] = {
 
+        // Padrões de entrada (dígitos 0–9 em matriz 4x4)
             { 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1 }, // 0
             { 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 1, 1 }, // 1
             { 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1 }, // 2
@@ -19,8 +20,7 @@ public class Perceptron4 {
     // padrões de entrada (dígitos 0–9 em matriz 4x4)
 
     private double w[][] = new double[16][4];
-    // Matriz de pesos. 16 são os pesos para cada uma das entradas e 4 são os
-    // perceptrons
+    // Matriz de pesos. 16 são os pesos para cada uma das entradas e 4 são os perceptrons
 
     private double t[][] = {
             { 1, 1, 1, 1 }, // 0
@@ -47,7 +47,7 @@ public class Perceptron4 {
         do {
 
             mudou = false;
-
+            // i é o índice para os padrões de entrada (0 a 9) e k é o índice para os perceptrons (0 a 3)
             for (int i = 0; i < 10; i++) {
 
                 for (int k = 0; k < 4; k++) {
