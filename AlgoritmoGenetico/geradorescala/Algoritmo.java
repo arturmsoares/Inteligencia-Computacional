@@ -27,15 +27,23 @@ public class Algoritmo {
         Random rand = new Random();
 
         for (int ind = 0; ind < tamPop; ind++) {
-            int gene = 0;
-
             for (int u = 0; u < 3; u++) // 3 unidades
                 for (int d = 0; d < 7; d++) // 7 dias
                     for (int t = 0; t < 3; t++) { // 3 turnos
 
-                        pop[ind][gene++] = rand.nextInt(25);
-                        pop[ind][gene++] = rand.nextInt(25);
-                        pop[ind][gene++] = rand.nextInt(25);
+                        // garante 3 médicos diferentes para este turno/dia/unidade
+                        boolean[] usado = new boolean[25];
+                        int gene = (u * 63) + (d * 9) + (t * 3);
+
+                        for (int vaga = 0; vaga < 3; vaga++) {
+                            int medico;
+                            do {
+                                medico = rand.nextInt(25);
+                            } while (usado[medico]); // Se já foi usado, tenta novamente
+
+                            pop[ind][gene + vaga] = medico;
+                            usado[medico] = true;
+                        }
                     }
         }
     }
@@ -44,10 +52,10 @@ public class Algoritmo {
     public void avaliacao() {
         for (int ind = 0; ind < tamPop; ind++) {
             notas[ind] = 0;
-            notas[ind] += penalizaRepetidos(ind);
             notas[ind] += penalizaClinicaGeral(ind);
             notas[ind] += penalizaCargaHoraria(ind);
             notas[ind] += penalizaConsecutivos(ind);
+            notas[ind] += penalizaMultiplasUnidades(ind);
         }
     }
 
@@ -82,16 +90,32 @@ public class Algoritmo {
         return pen * peso;
     }
 
-    private double penalizaRepetidos(int ind) {
+    private int penalizaMultiplasUnidades(int ind) {
         int pen = 0;
-        int peso = 3;
-        for (int gene = 0; gene < 189; gene += 3) { // cada turno ocupa 3 genes
-            int medico1 = pop[ind][gene];
-            int medico2 = pop[ind][gene + 1];
-            int medico3 = pop[ind][gene + 2];
+        int peso = 10;
 
-            if (medico1 == medico2 || medico1 == medico3 || medico2 == medico3) {
-                pen++;
+        for (int d = 0; d < 7; d++) { // para cada dia
+            for (int t = 0; t < 3; t++) { // para cada turno
+                int[] aparicoes = new int[25];
+
+                for (int u = 0; u < 3; u++) { // para cada unidade
+                    int geneUnidade = (u * 63) + (d * 9) + (t * 3);
+                    boolean[] jaContou = new boolean[25];
+
+                    for (int vaga = 0; vaga < 3; vaga++) {
+                        int medicoAnalisado = pop[ind][geneUnidade + vaga];
+                        if (!jaContou[medicoAnalisado]) {
+                            aparicoes[medicoAnalisado]++;
+                            jaContou[medicoAnalisado] = true;
+                        }
+                    }
+                }
+
+                for (int med = 0; med < 25; med++) {
+                    if (aparicoes[med] > 1) {
+                        pen++;
+                    }
+                }
             }
         }
         return pen * peso;
@@ -162,9 +186,9 @@ public class Algoritmo {
 
     }
 
-    public int[][] selecao(int[][] pais, int contGen) {
-        pais[0] = torneio(3); //torneio entre 3 candidatos
-        pais[1] = torneio(3);
+    public int[][] selecao(int[][] pais) {
+        pais[0] = torneio(7); // torneio entre 7 candidatos
+        pais[1] = torneio(7);
         return pais;
     }
 
@@ -184,14 +208,24 @@ public class Algoritmo {
         Random num = new Random();
 
         if (num.nextDouble() < pc) {
-            for (int j = 0; j < 189; j++) {
-                // cada gene tem 50% de chance de vir de cada pai
+            for (int i = 0; i < 189; i += 3) { // Cada turno
                 if (num.nextDouble() < 0.5) {
-                    filhos[0][j] = pais[0][j];
-                    filhos[1][j] = pais[1][j];
+                    // ajustei para herdar o turno completo de um dos pais
+                    filhos[0][i] = pais[0][i];
+                    filhos[0][i + 1] = pais[0][i + 1];
+                    filhos[0][i + 2] = pais[0][i + 2];
+
+                    filhos[1][i] = pais[1][i];
+                    filhos[1][i + 1] = pais[1][i + 1];
+                    filhos[1][i + 2] = pais[1][i + 2];
                 } else {
-                    filhos[0][j] = pais[1][j];
-                    filhos[1][j] = pais[0][j];
+                    filhos[0][i] = pais[1][i];
+                    filhos[0][i + 1] = pais[1][i + 1];
+                    filhos[0][i + 2] = pais[1][i + 2];
+
+                    filhos[1][i] = pais[0][i];
+                    filhos[1][i + 1] = pais[0][i + 1];
+                    filhos[1][i + 2] = pais[0][i + 2];
                 }
             }
         } else {
@@ -203,18 +237,35 @@ public class Algoritmo {
 
     public int[][] mutacao(int[][] filhos) {
         Random pos = new Random();
-
         for (int k = 0; k < 2; k++) {
-            for (int i = 0; i < 189; i += 3) { // para cada turno
+            for (int i = 0; i < 189; i += 3) { // Cada turno
                 if (pos.nextDouble() < pm) {
+                    // medicos atuais
+                    int m1 = filhos[k][i];
+                    int m2 = filhos[k][i + 1];
+                    int m3 = filhos[k][i + 2];
 
-                    // reinserção aleatória
-                    int vagaAleatoria = i + pos.nextInt(3);
-                    filhos[k][vagaAleatoria] = pos.nextInt(25);
+                    // sorteio qual vaga eu mudo
+                    int vagaMutar = pos.nextInt(3);
+                    int medicoNovoAleatorio;
+
+                    // garanto que o novo médico não vai se repetir no mesmo turno
+                    do {
+                        medicoNovoAleatorio = pos.nextInt(25);
+                    } while (medicoNovoAleatorio == m1 ||
+                            medicoNovoAleatorio == m2 ||
+                            medicoNovoAleatorio == m3);
+
+                    filhos[k][i + vagaMutar] = medicoNovoAleatorio;
                 }
             }
         }
         return filhos;
+    }
+
+    private void aplicarElitismo() {
+        popFilhos[0] = pop[0].clone();
+        popFilhos[1] = pop[1].clone();
     }
 
     public ResultadoAG aG() {
@@ -242,9 +293,11 @@ public class Algoritmo {
                     " | Melhor nota: " + notas[0] +
                     " | Pior nota: " + notas[tamPop - 1]);
 
-            int contFilhos = 0;
+            aplicarElitismo(); // garanto a permanencia dos melhores indivíduos para a próxima geração
+
+            int contFilhos = 2; // já inseri os 2 melhores indivíduos em popFilhos aplicando o elitismo
             do {
-                pais = selecao(pais, contGen);
+                pais = selecao(pais);
                 filhos = cruzamento(pais, filhos);
                 filhos = mutacao(filhos);
                 insereFilhos(filhos, contFilhos);
@@ -255,7 +308,7 @@ public class Algoritmo {
                 pop[i] = popFilhos[i].clone(); // atualiza população com os filhos gerados
 
             contGen++;
-            avaliacao(); // ← movido para antes do próximo if
+            avaliacao();
             ordenacao();
 
         } while (contGen < maxGen);
@@ -303,6 +356,26 @@ public class Algoritmo {
                 conflitos[gene] = 1;
                 conflitos[gene + 1] = 1;
                 conflitos[gene + 2] = 1;
+            }
+        }
+
+        // marca genes em múltiplas unidades
+        for (int d = 0; d < 7; d++) {
+            for (int t = 0; t < 3; t++) {
+                int[] aparicoes = new int[25];
+                for (int u = 0; u < 3; u++) {
+                    int geneUnidade = (u * 63) + (d * 9) + (t * 3);
+                    for (int vaga = 0; vaga < 3; vaga++) {
+                        int med = melhorIndividuo[geneUnidade + vaga];
+                        aparicoes[med]++;
+                    }
+                }
+                for (int vaga = 0; vaga < 3; vaga++) {
+                    int med = melhorIndividuo[(d * 9) + (t * 3) + vaga];
+                    if (aparicoes[med] > 1) {
+                        conflitos[(d * 9) + (t * 3) + vaga] = 1;
+                    }
+                }
             }
         }
         return melhorIndividuo;

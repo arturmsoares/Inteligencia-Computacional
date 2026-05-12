@@ -103,15 +103,24 @@ Interface gráfica em Java Swing. Permite configurar parâmetros, executar o AG 
 
 ### ✅ Etapa 1: População Inicial — `popInicial()`
 
-Gera cromossomos aleatórios. Cada turno recebe 3 médicos sorteados entre os 25 disponíveis (índices 0–24).
-
-> ⚠️ A restrição de pelo menos 1 Clínica Geral por turno **não é garantida na geração inicial** — ela é penalizada na avaliação. Isso é intencional: o AG aprende a respeitá-la ao longo das gerações.
+Gera cromossomos aleatórios. **Cada turno recebe 3 médicos DIFERENTES**, garantindo que não haja repetição de médicos no mesmo turno/dia/unidade desde o início.
 
 ```java
-pop[ind][gene++] = rand.nextInt(25); // médico 1 do turno
-pop[ind][gene++] = rand.nextInt(25); // médico 2 do turno
-pop[ind][gene++] = rand.nextInt(25); // médico 3 do turno
+boolean[] usado = new boolean[25];
+int gene = (u * 63) + (d * 9) + (t * 3);
+
+for (int vaga = 0; vaga < 3; vaga++) {
+    int medico;
+    do {
+        medico = rand.nextInt(25);
+    } while (usado[medico]);  // Garante médicos diferentes
+    
+    pop[ind][gene + vaga] = medico;
+    usado[medico] = true;
+}
 ```
+
+**Benefício**: Elimina a penalização `penalizaRepetidos()` desde a geração inicial.
 
 ---
 
@@ -130,11 +139,12 @@ notas[ind] += penalizaConsecutivos(ind);
 
 | Método | Violação detectada | Peso |
 |--------|--------------------|------|
-| `penalizaRepetidos` | Médico repetido no mesmo turno | 3 |
-| `penalizaClinicaGeral` | Turno sem nenhum médico de Clínica Geral (0–4) | 1 |
+| `penalizaClinicaGeral` | Turno sem nenhum médico de Clínica Geral (0–4) | 5 |
 | `penalizaCargaHoraria` | Médico com mais de 5 turnos semanais (> 40h) | 2 |
 | `penalizaConsecutivos` | Médico em dois turnos seguidos (Manhã→Tarde, Tarde→Noite, Noite→Manhã do dia seguinte) | 2 |
+| `penalizaMultiplasUnidades` | Médico em múltiplas unidades no mesmo turno/dia | 5 |
 
+> ✅ `penalizaRepetidos()` foi removida — garantida na população inicial.
 > 💡 Cada turno equivale a 8h. Máximo de 40h/semana = máximo de 5 turnos por médico.
 
 #### Verificação de turnos consecutivos
@@ -161,20 +171,18 @@ Após a ordenação: `pop[0]` = melhor indivíduo da geração.
 
 ### ✅ Etapa 4: Seleção — `selecao()` / `torneio()`
 
-Seleciona dois pais via **seleção por torneio**: sorteia `k` candidatos aleatórios da população inteira e o melhor entre eles vira pai. Ambos os pais passam pelo mesmo processo de forma independente.
+Seleciona dois pais via **seleção por torneio**: sorteia `k` candidatos aleatórios da população inteira e o melhor entre eles vira pai.
 
 ```java
-pais[0] = torneio(3);
-pais[1] = torneio(3);
+pais[0] = torneio(7);  // Torneio com 7 candidatos (pressão seletiva)
+pais[1] = torneio(7);
 ```
-
-O parâmetro `k` controla a pressão seletiva:
 
 | k | Comportamento |
 |---|---------------|
-| 2 | Pressão baixa — mais diversidade |
-| 3 | Equilíbrio — valor atual |
-| 5+ | Pressão alta — converge mais rápido |
+| 3-5 | Equilíbrio — mais diversidade |
+| 7-10 | **Pressão alta — converge mais rápido** |
+| 15+ | Muito rigoroso — convergência prematura |
 
 > Qualquer indivíduo tem chance de ser selecionado, mas os melhores ganham mais torneios — diversidade e pressão seletiva coexistem.
 
@@ -184,19 +192,25 @@ O parâmetro `k` controla a pressão seletiva:
 
 ### ✅ Etapa 5: Cruzamento — `cruzamento()`
 
-Utiliza **cruzamento uniforme**: cada gene decide individualmente de qual pai herdar, com 50% de chance para cada lado.
+Utiliza **cruzamento por turno**: cada turno (3 genes) é herdado integralmente de um dos pais (50% chance cada), preservando a validade dos cromossomos.
 
 ```java
-if (num.nextDouble() < 0.5) {
-    filhos[0][j] = pais[0][j];
-    filhos[1][j] = pais[1][j];
-} else {
-    filhos[0][j] = pais[1][j];
-    filhos[1][j] = pais[0][j];
+for (int i = 0; i < 189; i += 3) { // Cada turno
+    if (num.nextDouble() < 0.5) {
+        // Herda turno completo do pai 0
+        filhos[0][i] = pais[0][i];
+        filhos[0][i + 1] = pais[0][i + 1];
+        filhos[0][i + 2] = pais[0][i + 2];
+    } else {
+        // Herda turno completo do pai 1
+        filhos[0][i] = pais[1][i];
+        filhos[0][i + 1] = pais[1][i + 1];
+        filhos[0][i + 2] = pais[1][i + 2];
+    }
 }
 ```
 
-> Ao contrário do cruzamento de ponto de corte (que transfere blocos contínuos), o cruzamento uniforme permite combinar genes de regiões distintas do cromossomo — por exemplo, um bom turno de terça do pai 0 com um bom turno de sexta do pai 1.
+**Benefício**: Garante que filhos herdam turnos válidos (3 médicos diferentes) diretamente dos pais.
 
 > Se `nextDouble() >= pc`: filhos são cópias dos pais (sem cruzamento).
 
@@ -204,24 +218,54 @@ if (num.nextDouble() < 0.5) {
 
 ### ✅ Etapa 6: Mutação — `mutacao()`
 
-Aplica **mutação por reinserção aleatória**: para cada turno de cada filho, com probabilidade `pm`, substitui um gene por um médico sorteado aleatoriamente entre os 25 disponíveis.
+Aplica **mutação com validação**: para cada turno, com probabilidade `pm`, substitui um gene por um médico sorteado, **garantindo que não se repete** no mesmo turno.
 
 ```java
-for (int i = 0; i < 189; i += 3) { // para cada turno
+for (int i = 0; i < 189; i += 3) { // cada turno
     if (pos.nextDouble() < pm) {
-        int vagaAleatoria = i + pos.nextInt(3);
-        filhos[k][vagaAleatoria] = pos.nextInt(25); // médico completamente novo
+        int m1 = filhos[k][i];
+        int m2 = filhos[k][i + 1];
+        int m3 = filhos[k][i + 2];
+        
+        int vagaMutar = pos.nextInt(3);
+        int medicoNovoAleatorio;
+        
+        do {
+            medicoNovoAleatorio = pos.nextInt(25);
+        } while (medicoNovoAleatorio == m1 || 
+                 medicoNovoAleatorio == m2 || 
+                 medicoNovoAleatorio == m3);
+        
+        filhos[k][i + vagaMutar] = medicoNovoAleatorio;
     }
 }
 ```
 
-> A verificação de `pm` ocorre **dentro** do loop de turnos — cada turno tem chance independente de sofrer mutação. Com `pm = 0.02` e 63 turnos por filho, em média ~1,26 turnos mutam por filho por geração.
+**Benefício**: Mantém a restrição de médicos diferentes válida mesmo após mutação.
 
-> Diferente do swap (que apenas troca médicos já presentes), a reinserção introduz valores genuinamente novos no cromossomo, evitando que a população fique presa em ótimos locais.
+> Com `pm = 0.15` e 63 turnos por filho, em média ~9,45 turnos mutam por filho por geração — alta exploração.
 
 ---
 
-### ✅ Etapa 7: Loop Principal — `aG()`
+### ✅ Etapa 7: Elitismo — `aplicarElitismo()`
+
+Preserva os 2 melhores indivíduos da geração anterior **ANTES** de gerar novos filhos, garantindo que não sejam perdidos.
+
+```java
+// No início de cada geração (antes de gerar filhos)
+aplicarElitismo();
+popFilhos[0] = pop[0].clone();  // Melhor indivíduo
+popFilhos[1] = pop[1].clone();  // 2º melhor indivíduo
+
+// Filhos novos são inseridos em popFilhos[2] até popFilhos[tamPop-1]
+int contFilhos = 2;
+```
+
+**Benefício**: Converge mais rápido mantendo a melhor solução de todas as gerações.
+
+---
+
+### ✅ Etapa 8: Loop Principal — `aG()`
 
 Orquestra todas as etapas em loop até atingir o número máximo de gerações.
 
@@ -231,10 +275,11 @@ popInicial()
        avaliacao()
        ordenacao()
        registro()         ← salva melhor se notas[0] < melhorNota
+       aplicarElitismo()  ← preserva 2 melhores
        do {
-           selecao()
-           cruzamento()
-           mutacao()
+           selecao()      ← com torneio(7 ou 10)
+           cruzamento()   ← por turno
+           mutacao()      ← com validação
            insereFilhos()
        } while (filhos < tamPop)
        pop = popFilhos
@@ -264,31 +309,51 @@ Tipos de conflito marcados:
 
 ---
 
-## 🎯 Restrições do Problema
+## 🔧 Parâmetros Recomendados
+
+| Parâmetro | Valor Recomendado | Descrição |
+|-----------|------------------|-----------|
+| `tamPop` | 50-500 | Tamanho da população — maior = mais exploração, mais lento |
+| `maxGen` | 100-1000 | Número de gerações — mais = melhor convergência |
+| `pc` | 0.80-0.90 | Probabilidade de cruzamento — geralmente alto |
+| `pm` | **0.10-0.20** | **Probabilidade de mutação — CRÍTICO para exploração** |
+| `torneio(k)` | 7-10 | Tamanho do torneio — maior = pressão seletiva |
+| `Peso CG` | 5-10 | Clínica Geral é restrição crucial |
+
+### ⚠️ Nota Importante Sobre `pm`
+
+**`pm` muito baixa (0.01-0.05)** resulta em convergência prematura e qualidade de solução ruim.
+
+**`pm` muito alta (0.30+)** causa muita perturbação — destrói boas soluções.
+
+**Valor ótimo**: `pm ≈ 0.15` (aproximadamente **9-10 turnos** mutam por indivíduo por geração com 63 turnos totais).
+
+---
+
+## 📊 Restrições do Problema
 
 ### Restrições Duras (penalizadas com peso maior)
 
-| Restrição | Peso |
-|-----------|------|
-| Médico repetido no mesmo turno | 3 |
-| Turnos consecutivos para o mesmo médico | 2 |
-| Excesso de carga horária (> 40h/semana) | 2 |
+| Restrição | Peso | Descrição |
+|-----------|------|-----------|
+| Turno sem Clínica Geral | **5** | Cada turno deve ter ≥1 médico 0–4 |
+| Médico em múltiplas unidades | **5** | Médico não pode estar em 2+ unidades no mesmo turno/dia |
+| Turnos consecutivos | 3 | Médico não pode trabalhar turno seguido (Manhã→Tarde, Tarde→Noite, Noite→Manhã-dia-seguinte) |
+| Excesso de carga horária | 2 | Médico limitado a máximo 5 turnos/semana (40h) |
 
-### Restrições Suaves (penalizadas com peso menor)
-
-| Restrição | Peso |
-|-----------|------|
-| Turno sem Clínica Geral | 1 |
+**Nota**: Médicos diferentes por turno é garantido na população inicial — não precisa penalização.
 
 ---
 
 ## 📊 Função de Fitness
 
 ```
-fitness = (repetidos × 3) + (sem_CG × 1) + (excesso_horas × 2) + (consecutivos × 2)
+fitness = (sem_CG × 5) + (multiplas_unidades × 5) + (consecutivos × 3) + (excesso_horas × 2)
 ```
 
-`fitness = 0` representa a escala ideal — sem nenhuma violação.
+**Menores valores = melhores soluções.**
+
+`fitness = 0` representaria a escala ideal — sem nenhuma violação.
 
 ---
 
@@ -324,11 +389,48 @@ java geradorescala.Main
 
 ---
 
-## 📝 Parâmetros Recomendados
+## ✨ Resumo das Melhorias Implementadas
 
-| Parâmetro | Valor sugerido | Descrição |
-|-----------|---------------|-----------|
-| `tamPop` | 100–200 | Tamanho da população |
-| `maxGen` | 500–1000 | Número máximo de gerações |
-| `pc` | 0.80–0.95 | Probabilidade de cruzamento |
-| `pm` | 0.01–0.05 | Probabilidade de mutação por turno |
+### v2.0 - Otimizações de Qualidade e Convergência
+
+| Melhorias | Impacto | Status |
+|-----------|---------|--------|
+| **Cruzamento por turno** | Garante validade dos filhos | ✅ Implementada |
+| **Mutação com validação** | Mantém restrição de médicos diferentes | ✅ Implementada |
+| **Elitismo corrigido** | Preserva 2 melhores antes de gerar filhos | ✅ Implementada |
+| **Torneio com k=7** | Pressão seletiva balanceada | ✅ Implementada |
+| **pm ≈ 0.15** | Exploração adequada (9-10 mutações/indivíduo) | 🟡 Recomendado |
+| **Penalização múltiplas unidades** | Detecta médico em 2+ unidades mesmo turno | ✅ Implementada |
+
+### Diagnóstico de Desempenho
+
+**Problema Original**: Convergência lenta (320 → 143 em 1000 gerações = 57% melhora)
+
+**Causa Identificada**: `pm = 0.02` crítico para otimização — apenas 1-2 turnos mutam por indivíduo
+
+**Solução**: Aumentar `pm` para 0.15 — aumenta 7.5x a exploração
+
+---
+
+## 🔍 Dicas de Debugging
+
+### Se a melhor nota não diminui muito:
+1. ✅ Verificar se `tamPop` e `maxGen` são suficientes
+2. ✅ **Aumentar `pm` para 0.15** (impacto maior)
+3. ✅ Aumentar `k` no torneio (7 → 10)
+4. ✅ Verificar pesos das penalizações — Clínica Geral é crítica
+
+### Se a nota piora entre gerações:
+1. ✅ Confirmar que `aplicarElitismo()` é chamada **ANTES** de gerar filhos
+2. ✅ Verificar que `contFilhos` começa em 2 (não 0)
+3. ✅ Verificar que melhores indivíduos são clonados
+
+### Se há muitos conflitos de Clínica Geral:
+1. ✅ Aumentar peso de `penalizaClinicaGeral()` de 5 para 10
+2. ✅ Verificar se há médicos suficientes na especialidade (5 disponíveis para 63 slots)
+3. ✅ Considerar aumentar tamanho da população
+
+### Se há repetição de médicos no turno:
+1. ✅ Verificar `popInicial()` — deve ter validação do-while
+2. ✅ Verificar `mutacao()` — deve validar que novo médico ≠ médicos existentes
+3. ✅ Verificar `cruzamento()` — turno herda 3 médicos diferentes do pai
